@@ -4,3 +4,14 @@
 settings.py
 dump.rdb
 nohup.out
+
+#common ignore
+.idea/
+.svn/
+*.iml
+.settings/
+.classpath
+.project
+/lib/
+/logs/
+settings.gradle
