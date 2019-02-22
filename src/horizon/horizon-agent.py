@@ -60,6 +60,7 @@ class Horizon():
         while 1:
             time.sleep(100)
 
+
 if __name__ == "__main__":
     """
     Start the Horizon agent.

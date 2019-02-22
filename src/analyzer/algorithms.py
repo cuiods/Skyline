@@ -7,6 +7,7 @@ import logging
 from time import time
 from msgpack import unpackb, packb
 from redis import StrictRedis
+from scipy import stats
 
 from settings import (
     ALGORITHMS,
@@ -120,33 +121,33 @@ def stddev_from_average(timeseries):
     return abs(t - mean) > 3 * stdDev
 
 
-def stddev_from_moving_average(timeseries):
-    """
-    A timeseries is anomalous if the absolute value of the average of the latest
-    three datapoint minus the moving average is greater than three standard
-    deviations of the moving average. This is better for finding anomalies with
-    respect to the short term trends.
-    """
-    series = pandas.Series([x[1] for x in timeseries])
-    expAverage = pandas.stats.moments.ewma(series, com=50)
-    stdDev = pandas.stats.moments.ewmstd(series, com=50)
-
-    return abs(series.iget(-1) - expAverage.iget(-1)) > 3 * stdDev.iget(-1)
-
-
-def mean_subtraction_cumulation(timeseries):
-    """
-    A timeseries is anomalous if the value of the next datapoint in the
-    series is farther than three standard deviations out in cumulative terms
-    after subtracting the mean from each data point.
-    """
-
-    series = pandas.Series([x[1] if x[1] else 0 for x in timeseries])
-    series = series - series[0:len(series) - 1].mean()
-    stdDev = series[0:len(series) - 1].std()
-    expAverage = pandas.stats.moments.ewma(series, com=15)
-
-    return abs(series.iget(-1)) > 3 * stdDev
+# def stddev_from_moving_average(timeseries):
+#     """
+#     A timeseries is anomalous if the absolute value of the average of the latest
+#     three datapoint minus the moving average is greater than three standard
+#     deviations of the moving average. This is better for finding anomalies with
+#     respect to the short term trends.
+#     """
+#     series = pandas.Series([x[1] for x in timeseries])
+#     expAverage = pandas.stats.moments.ewma(series, com=50)
+#     stdDev = pandas.stats.moments.ewmstd(series, com=50)
+#
+#     return abs(series.iget(-1) - expAverage.iget(-1)) > 3 * stdDev.iget(-1)
+#
+#
+# def mean_subtraction_cumulation(timeseries):
+#     """
+#     A timeseries is anomalous if the value of the next datapoint in the
+#     series is farther than three standard deviations out in cumulative terms
+#     after subtracting the mean from each data point.
+#     """
+#
+#     series = pandas.Series([x[1] if x[1] else 0 for x in timeseries])
+#     series = series - series[0:len(series) - 1].mean()
+#     stdDev = series[0:len(series) - 1].std()
+#     expAverage = pandas.stats.moments.ewma(series, com=15)
+#
+#     return abs(series.iget(-1)) > 3 * stdDev
 
 
 def least_squares(timeseries):
