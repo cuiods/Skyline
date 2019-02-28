@@ -5,4 +5,5 @@ flask==0.9
 simplejson==2.0.9
 unittest2
 mock
+pymysql==0.9.3
 #python-simple-hipchat

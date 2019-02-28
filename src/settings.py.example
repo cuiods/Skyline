@@ -14,6 +14,9 @@ PID_PATH = '/var/run/skyline'
 # Metrics will be prefixed with this value in Redis.
 FULL_NAMESPACE = 'metrics.'
 
+# Anomaly datapoints will be prefixed with this value in Redis.
+ANOMALY_NAMESPACE = 'anomaly.'
+
 # The Horizon agent will make T'd writes to both the full namespace and the
 # mini namespace. Oculus gets its data from everything in the mini namespace.
 MINI_NAMESPACE = 'mini.'
@@ -60,7 +63,7 @@ ANOMALY_DUMP = 'webapp/static/dump/anomalies.json'
 # if you set ANALYZER_PROCESSES to several less than the total number of
 # CPUs on your box. Be sure to leave some CPU room for the Horizon workers,
 # and for Redis.
-ANALYZER_PROCESSES = 5
+ANALYZER_PROCESSES = 4
 
 # This is the duration, in seconds, for a metric to become 'stale' and for
 # the analyzer to ignore it until new datapoints are added. 'Staleness' means
@@ -158,6 +161,29 @@ PAGERDUTY_OPTS = {
     "key": "your_pagerduty_service_api_key",
 }
 
+# This is the number of processes that the Skyline persister will spawn.
+PERSIST_PROCESSES = 1
+
+# This is the number of processes that the Skyline persister will spawn.
+PERSIST_PROCESSES = 1
+
+# Mysql host used to store abnormal data points
+MYSQL_HOST = '127.0.0.1'
+
+# Mysql port
+MYSQL_PORT = 3306
+
+# Mysql user, suggested to create a new user named 'skyline'
+MYSQL_USER = 'skyline'
+
+# Password for MYSQL_USER
+MYSQL_PASSWORD = ''
+
+# Mysql database used to store abnormal data points
+MYSQL_DB = 'anomaly'
+
+# Mysql charset
+MYSQL_CHARSET = 'utf-8'
 
 """
 Horizon settings
