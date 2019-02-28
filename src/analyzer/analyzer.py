@@ -105,6 +105,12 @@ class Analyzer(Thread):
                             algorithm = settings.ALGORITHMS[index]
                             anomaly_breakdown[algorithm] += 1
 
+                    # Add anomaly datapoint to redis
+                    key = ''.join((settings.ANOMALY_NAMESPACE, base_name))
+                    anomaly_full_uniques = settings.ANOMALY_NAMESPACE + 'unique_metrics'
+                    self.redis_conn.append(key, packb(datapoint))
+                    self.redis_conn.sadd(anomaly_full_uniques, key)
+
             # It could have been deleted by the Roomba
             except TypeError:
                 exceptions['DeletedByRoomba'] += 1
