@@ -201,7 +201,7 @@ def histogram_bins(timeseries):
             elif t >= bins[index] and t < bins[index + 1]:
                     return True
 
-    return False
+    return True
 
 
 def ks_test(timeseries):
