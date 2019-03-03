@@ -49,28 +49,28 @@ def tail_avg(timeseries):
         return timeseries[-1][1]
 
 
-def median_absolute_deviation(timeseries):
-    """
-    A timeseries is anomalous if the deviation of its latest datapoint with
-    respect to the median is X times larger than the median of deviations.
-    """
-
-    series = pandas.Series([x[1] for x in timeseries])
-    median = series.median()
-    demedianed = np.abs(series - median)
-    median_deviation = demedianed.median()
-
-    # The test statistic is infinite when the median is zero,
-    # so it becomes super sensitive. We play it safe and skip when this happens.
-    if median_deviation == 0:
-        return False
-
-    test_statistic = demedianed.iget(-1) / median_deviation
-
-    # Completely arbitary...triggers if the median deviation is
-    # 6 times bigger than the median
-    if test_statistic > 6:
-        return True
+# def median_absolute_deviation(timeseries):
+#     """
+#     A timeseries is anomalous if the deviation of its latest datapoint with
+#     respect to the median is X times larger than the median of deviations.
+#     """
+#
+#     series = pandas.Series([x[1] for x in timeseries])
+#     median = series.median()
+#     demedianed = np.abs(series - median)
+#     median_deviation = demedianed.median()
+#
+#     # The test statistic is infinite when the median is zero,
+#     # so it becomes super sensitive. We play it safe and skip when this happens.
+#     if median_deviation == 0:
+#         return False
+#
+#     test_statistic = demedianed.iget(-1) / median_deviation
+#
+#     # Completely arbitary...triggers if the median deviation is
+#     # 6 times bigger than the median
+#     if test_statistic > 6:
+#         return True
 
 
 def grubbs(timeseries):

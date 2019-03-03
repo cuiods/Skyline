@@ -10,7 +10,7 @@ import pymysql
 import logging
 import settings
 
-logger = logging.getLogger("PersistLog")
+logger = logging.getLogger("AnalyzerLog")
 
 
 class Persister(Thread):
@@ -64,7 +64,7 @@ class Persister(Thread):
         # Distill timeseries strings into lists
         # store abnormal data point to mysql database
         cursor = self.mysql_conn.cursor()
-        sql = 'INSERT into t_abnormal(timestamp,data) VALUES (%s,%s);'
+        sql = 'INSERT into t_abnormal(time,data) VALUES (%s,%s);'
         for i, metric_name in enumerate(assigned_metrics):
             self.check_if_parent_is_alive()
 
@@ -77,7 +77,6 @@ class Persister(Thread):
                 cursor.execute(sql, [str(datapoint[0]), str(datapoint)])
                 self.mysql_conn.commit()
         cursor.close()
-
 
     def run(self):
         """

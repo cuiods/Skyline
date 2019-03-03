@@ -11,6 +11,7 @@ sys.path.insert(0, dirname(dirname(abspath(__file__))))
 import settings
 
 from analyzer import Analyzer
+from persister import Persister
 
 
 class AnalyzerAgent():
@@ -23,7 +24,9 @@ class AnalyzerAgent():
 
     def run(self):
         logger.info('starting skyline analyzer')
-        Analyzer(getpid()).start()
+        pid = getpid()
+        Analyzer(pid).start()
+        Persister(pid).start()
 
         while 1:
             sleep(100)
