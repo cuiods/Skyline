@@ -8,6 +8,8 @@ from time import time
 from msgpack import unpackb, packb
 from redis import StrictRedis
 from scipy import stats
+from sklearn.ensemble import IsolationForest
+from sklearn.cluster import KMeans
 
 from settings import (
     ALGORITHMS,
@@ -19,12 +21,17 @@ from settings import (
     REDIS_SOCKET_PATH,
     ENABLE_SECOND_ORDER,
     BOREDOM_SET_SIZE,
+    K_MEANS_CLUSTER,
+    VERTEX_WEIGHT_ETA,
+    VERTEX_THRESHOLD,
 )
 
 from algorithm_exceptions import *
 
 logger = logging.getLogger("AnalyzerLog")
 redis_conn = StrictRedis(unix_socket_path=REDIS_SOCKET_PATH)
+centers = np.zeros((1, 1))
+avg_score = -1
 
 """
 This is no man's land. Do anything you want in here,
@@ -33,6 +40,82 @@ timeseries is anomalous or not.
 
 To add an algorithm, define it here, and add its name to settings.ALGORITHMS.
 """
+
+
+def vertex_score(timeseries):
+    """
+    A timeseries is anomalous if vertex score in hypergraph is greater than average score of observed anomalous vertex.
+    :return: True or False
+    """
+    if centers.shape[0] <= 1:
+        update_vertex_param()
+    test_data = timeseries[:, 1:]
+    test_data = (test_data - np.min(test_data, axis=0)) / (np.max(test_data, axis=0) - np.min(test_data, axis=0))
+    test_data = np.nan_to_num(test_data)
+    score = calculate_vertex_score(test_data, centers)
+    if np.sum(score[score > avg_score]) > VERTEX_THRESHOLD:
+        return True
+    return False
+
+
+def update_vertex_param():
+    """
+    Read observed abnormal data and update cluster centers
+    """
+    global centers
+    global avg_score
+    origin_data = pandas.read_csv("data/data_ipv6_abnormal")
+    abnormal = origin_data[:, 3:]
+    abnormal = (abnormal - np.min(abnormal, axis=0)) / (np.max(abnormal, axis=0) - np.min(abnormal, axis=0))
+    abnormal = np.nan_to_num(abnormal)
+    k_means = KMeans(n_clusters=K_MEANS_CLUSTER)
+    k_means.fit_predict(abnormal)
+    centers = k_means.cluster_centers_
+    avg_score = np.mean(calculate_vertex_score(abnormal, centers))
+
+
+def calculate_vertex_score(samples, center):
+    """
+    we use similarity score and isolation score to initialize vertex weight
+    according to their correlations
+
+    :param samples: all the samples
+    :param center: abnormal cluster center
+    :return: total score of samples
+    """
+    clf = IsolationForest()
+    clf.fit(samples)
+    num = samples.shape[0]
+    IS = (0.5 - clf.decision_function(samples)).reshape((num, 1))
+    distance = np.array(np.min(euclidean_distances(samples, center), axis=1))
+    dis_min = np.min(distance)
+    dis_max = np.max(distance)
+    distance = (distance - dis_min) / (dis_max - dis_min)
+    SS = np.exp(-distance).reshape((num, 1))
+    TS = VERTEX_WEIGHT_ETA * IS + (1-VERTEX_WEIGHT_ETA) * SS
+    return TS
+
+
+def euclidean_distances(A, B):
+    """
+    Euclidean distance between matrix A and B
+
+    :param A: np array
+    :param B: np array
+    :return: np array
+    """
+    BT = B.transpose()
+    vec_prod = np.dot(A, BT)
+    SqA =  A**2
+    sumSqA = np.matrix(np.sum(SqA, axis=1))
+    sumSqAEx = np.tile(sumSqA.transpose(), (1, vec_prod.shape[1]))
+    SqB = B**2
+    sumSqB = np.sum(SqB, axis=1)
+    sumSqBEx = np.tile(sumSqB, (vec_prod.shape[0], 1))
+    SqED = sumSqBEx + sumSqAEx - 2*vec_prod
+    SqED[SqED < 0] = 0.0
+    ED = np.sqrt(SqED)
+    return ED
 
 
 def tail_avg(timeseries):
@@ -47,30 +130,6 @@ def tail_avg(timeseries):
         return t
     except IndexError:
         return timeseries[-1][1]
-
-
-# def median_absolute_deviation(timeseries):
-#     """
-#     A timeseries is anomalous if the deviation of its latest datapoint with
-#     respect to the median is X times larger than the median of deviations.
-#     """
-#
-#     series = pandas.Series([x[1] for x in timeseries])
-#     median = series.median()
-#     demedianed = np.abs(series - median)
-#     median_deviation = demedianed.median()
-#
-#     # The test statistic is infinite when the median is zero,
-#     # so it becomes super sensitive. We play it safe and skip when this happens.
-#     if median_deviation == 0:
-#         return False
-#
-#     test_statistic = demedianed.iget(-1) / median_deviation
-#
-#     # Completely arbitary...triggers if the median deviation is
-#     # 6 times bigger than the median
-#     if test_statistic > 6:
-#         return True
 
 
 def grubbs(timeseries):
@@ -119,35 +178,6 @@ def stddev_from_average(timeseries):
     t = tail_avg(timeseries)
 
     return abs(t - mean) > 3 * stdDev
-
-
-# def stddev_from_moving_average(timeseries):
-#     """
-#     A timeseries is anomalous if the absolute value of the average of the latest
-#     three datapoint minus the moving average is greater than three standard
-#     deviations of the moving average. This is better for finding anomalies with
-#     respect to the short term trends.
-#     """
-#     series = pandas.Series([x[1] for x in timeseries])
-#     expAverage = pandas.stats.moments.ewma(series, com=50)
-#     stdDev = pandas.stats.moments.ewmstd(series, com=50)
-#
-#     return abs(series.iget(-1) - expAverage.iget(-1)) > 3 * stdDev.iget(-1)
-#
-#
-# def mean_subtraction_cumulation(timeseries):
-#     """
-#     A timeseries is anomalous if the value of the next datapoint in the
-#     series is farther than three standard deviations out in cumulative terms
-#     after subtracting the mean from each data point.
-#     """
-#
-#     series = pandas.Series([x[1] if x[1] else 0 for x in timeseries])
-#     series = series - series[0:len(series) - 1].mean()
-#     stdDev = series[0:len(series) - 1].std()
-#     expAverage = pandas.stats.moments.ewma(series, com=15)
-#
-#     return abs(series.iget(-1)) > 3 * stdDev
 
 
 def least_squares(timeseries):
@@ -201,7 +231,7 @@ def histogram_bins(timeseries):
             elif t >= bins[index] and t < bins[index + 1]:
                     return True
 
-    return True
+    return False
 
 
 def ks_test(timeseries):

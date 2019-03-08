@@ -6,4 +6,5 @@ simplejson==2.0.9
 unittest2
 mock
 pymysql==0.9.3
+sklearn
 #python-simple-hipchat

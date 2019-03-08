@@ -185,6 +185,16 @@ MYSQL_DB = 'anomaly'
 # Mysql charset
 MYSQL_CHARSET = 'utf-8'
 
+# classify abnormal data into several classes
+K_MEANS_CLUSTER = 7
+
+# weight of distance to observed abnormal data when calculating vertex weight
+VERTEX_WEIGHT_ETA = 0.5
+
+# vertex threshold : If the number of points marked as abnormal exceeds the threshold
+# the metric will be considered to be abnormal
+VERTEX_THRESHOLD = 2
+
 """
 Horizon settings
 """
