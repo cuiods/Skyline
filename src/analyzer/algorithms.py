@@ -24,6 +24,8 @@ from settings import (
     K_MEANS_CLUSTER,
     VERTEX_WEIGHT_ETA,
     VERTEX_THRESHOLD,
+    ANOMALY_COLUMN,
+    ANOMALY_PATH,
 )
 
 from algorithm_exceptions import *
@@ -49,6 +51,7 @@ def vertex_score(timeseries):
     """
     if centers.shape[0] <= 1:
         update_vertex_param()
+    timeseries = np.array(timeseries)
     test_data = timeseries[:, 1:]
     test_data = (test_data - np.min(test_data, axis=0)) / (np.max(test_data, axis=0) - np.min(test_data, axis=0))
     test_data = np.nan_to_num(test_data)
@@ -64,7 +67,7 @@ def update_vertex_param():
     """
     global centers
     global avg_score
-    origin_data = pandas.read_csv("data/data_ipv6_abnormal")
+    origin_data = pandas.read_csv(ANOMALY_PATH).values
     abnormal = origin_data[:, 3:]
     abnormal = (abnormal - np.min(abnormal, axis=0)) / (np.max(abnormal, axis=0) - np.min(abnormal, axis=0))
     abnormal = np.nan_to_num(abnormal)
@@ -125,11 +128,13 @@ def tail_avg(timeseries):
     It reduces noise, but it also reduces sensitivity and increases the delay
     to detection.
     """
+    timeseries = np.array(timeseries)
+    timeseries = timeseries[:, 1:]
     try:
-        t = (timeseries[-1][1] + timeseries[-2][1] + timeseries[-3][1]) / 3
+        t = (timeseries[-1] + timeseries[-2] + timeseries[-3]) / 3
         return t
     except IndexError:
-        return timeseries[-1][1]
+        return timeseries[-1]
 
 
 def grubbs(timeseries):
@@ -156,13 +161,17 @@ def first_hour_average(timeseries):
     A timeseries is anomalous if the average of the last three datapoints
     are outside of three standard deviations of this value.
     """
+    timeseries = np.array(timeseries)
     last_hour_threshold = time() - (FULL_DURATION - 3600)
-    series = pandas.Series([x[1] for x in timeseries if x[0] < last_hour_threshold])
-    mean = (series).mean()
-    stdDev = (series).std()
+    series = timeseries[timeseries[:, 0] < last_hour_threshold]
+    if series.shape[0] == 0:
+        return False
+    series = series[:, 1:]
+    mean = np.mean(series, axis=0)
+    stdDev = np.std(series, axis=0)
     t = tail_avg(timeseries)
 
-    return abs(t - mean) > 3 * stdDev
+    return np.sum(abs(t - mean) > 3 * stdDev) > ANOMALY_COLUMN
 
 
 def stddev_from_average(timeseries):
@@ -172,12 +181,13 @@ def stddev_from_average(timeseries):
     deviations of the average. This does not exponentially weight the MA and so
     is better for detecting anomalies with respect to the entire series.
     """
-    series = pandas.Series([x[1] for x in timeseries])
-    mean = series.mean()
-    stdDev = series.std()
+    timeseries = np.array(timeseries)
+    series = timeseries[:, 1]
+    mean = np.mean(series, axis=0)
+    stdDev = np.std(series, axis=0)
     t = tail_avg(timeseries)
 
-    return abs(t - mean) > 3 * stdDev
+    return np.sum(abs(t - mean) > 3 * stdDev) > ANOMALY_COLUMN
 
 
 def least_squares(timeseries):

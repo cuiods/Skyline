@@ -46,8 +46,6 @@ if __name__ == "__main__":
     # Make sure we can run all the algorithms
     try:
         from algorithms import *
-        timeseries = map(list, zip(map(float, range(int(time()) - 86400, int(time()) + 1)), [1] * 86401))
-        ensemble = [globals()[algorithm](timeseries) for algorithm in settings.ALGORITHMS]
     except KeyError as e:
         print "Algorithm %s deprecated or not defined; check settings.ALGORITHMS" % e
         sys.exit(1)

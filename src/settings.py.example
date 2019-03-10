@@ -195,6 +195,12 @@ VERTEX_WEIGHT_ETA = 0.5
 # the metric will be considered to be abnormal
 VERTEX_THRESHOLD = 2
 
+# If the number of abnormal column exceeds the threshold, the metric will be considered to be abnormal
+ANOMALY_COLUMN = 2
+
+# Path of observed abnormal data
+ANOMALY_PATH = '/home/cuiods/Project/skyline/src/analyzer/data/data_ipv6_abnormal.csv'
+
 """
 Horizon settings
 """
