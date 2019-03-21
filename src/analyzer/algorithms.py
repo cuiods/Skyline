@@ -1,9 +1,11 @@
+# coding=utf-8
 import pandas
 import numpy as np
 import scipy
 import statsmodels.api as sm
 import traceback
 import logging
+import math
 from time import time
 from msgpack import unpackb, packb
 from redis import StrictRedis
@@ -32,8 +34,9 @@ from algorithm_exceptions import *
 
 logger = logging.getLogger("AnalyzerLog")
 redis_conn = StrictRedis(unix_socket_path=REDIS_SOCKET_PATH)
-centers = np.zeros((1, 1))
-avg_score = -1
+vertex_centers = np.zeros((1, 1))
+vertex_avg_score = -1
+cshl_weight = np.zeros((1, 1))
 
 """
 This is no man's land. Do anything you want in here,
@@ -49,14 +52,14 @@ def vertex_score(timeseries):
     A timeseries is anomalous if vertex score in hypergraph is greater than average score of observed anomalous vertex.
     :return: True or False
     """
-    if centers.shape[0] <= 1:
+    if vertex_centers.shape[0] <= 1:
         update_vertex_param()
     timeseries = np.array(timeseries)
     test_data = timeseries[:, 1:]
     test_data = (test_data - np.min(test_data, axis=0)) / (np.max(test_data, axis=0) - np.min(test_data, axis=0))
     test_data = np.nan_to_num(test_data)
-    score = calculate_vertex_score(test_data, centers)
-    if np.sum(score[score > avg_score]) > VERTEX_THRESHOLD:
+    score = calculate_vertex_score(test_data, vertex_centers)
+    if np.sum(score[score > vertex_avg_score]) > VERTEX_THRESHOLD:
         return True
     return False
 
@@ -65,16 +68,16 @@ def update_vertex_param():
     """
     Read observed abnormal data and update cluster centers
     """
-    global centers
-    global avg_score
+    global vertex_centers
+    global vertex_avg_score
     origin_data = pandas.read_csv(ANOMALY_PATH).values
     abnormal = origin_data[:, 3:]
     abnormal = (abnormal - np.min(abnormal, axis=0)) / (np.max(abnormal, axis=0) - np.min(abnormal, axis=0))
     abnormal = np.nan_to_num(abnormal)
     k_means = KMeans(n_clusters=K_MEANS_CLUSTER)
     k_means.fit_predict(abnormal)
-    centers = k_means.cluster_centers_
-    avg_score = np.mean(calculate_vertex_score(abnormal, centers))
+    vertex_centers = k_means.cluster_centers_
+    vertex_avg_score = np.mean(calculate_vertex_score(abnormal, vertex_centers))
 
 
 def calculate_vertex_score(samples, center):
@@ -135,6 +138,180 @@ def tail_avg(timeseries):
         return t
     except IndexError:
         return timeseries[-1]
+
+
+def z_score(x):
+    """
+    z-standard
+    :param x:
+    :return:
+    """
+    dim = x.shape[1]
+    leng = x.shape[0]
+    for i in range(dim):
+        total = 0
+        var = 0
+        for j in range(leng):
+            total += x[j][i]
+        ave = float(total) / leng
+        for j in range(leng):
+            var += pow(x[j][i] - ave, 2)
+        var = var / (leng - 1)
+        var = pow(var, 0.5)
+        for j in range(leng):
+            x[j][i] = (x[j][i] - ave) / var
+    return x
+
+
+def hpconstruct(x, y, k):
+    """
+    construct hypergraph and interative process
+    :param x: np array, train and test set
+    :param y: np array, cost for each sample
+    :param k: value, kNN
+    :return: evaluation criteria
+    """
+    length = len(x)
+    h = np.zeros((length, length))
+    dvlist = []
+    delist = []
+    totaldis = 0.0
+    alpha = 0.05
+
+    wm = np.eye(length)
+    wm = (1.0 / length) * wm
+    # initialize W
+
+    for xi in range(length):
+        diffMat = np.tile(x[xi], (length, 1)) - x  # 求inX与训练集各个实例的差
+        sqDiffMat = diffMat ** 2
+        sqDistances = sqDiffMat.sum(axis=1)
+        distances = sqDistances ** 0.5  # 求欧式距离
+        sortedDistIndicies = distances.argsort()  # 取排序的索引，用于排label
+        for i in range(k):
+            index = sortedDistIndicies[i + 1]
+            h[index][xi] = distances[index]
+        totaldis += distances.sum()
+    avedis = totaldis / (length ** 2 - length)
+    for xi in range(length):
+        for yi in range(length):
+            if h[xi][yi]:
+                h[xi][yi] = math.exp(((h[xi][yi] / avedis) ** 2) / (-alpha))
+        h[xi][xi] = 1
+    # initialize H，横坐标代表点，纵坐标代表边（中心点为序号）
+
+    for xi in range(length):
+        vertextmp = 0
+        for yi in range(length):
+            vertextmp += wm[yi][yi] * h[xi][yi]
+        dvlist.append(vertextmp)
+    dv = np.diag(dvlist)
+    # initialize Dv
+
+    for xi in range(length):
+        edgetmp = 0
+        for yi in range(length):
+            edgetmp += h[yi][xi]
+        delist.append(edgetmp)
+    de = np.diag(delist)
+    # initialize De
+
+    di = []
+    # y = np.array([])
+    for i in range(length):
+        if y[i] == 1:
+            di.append(1)
+        elif y[i] == -1:
+            di.append(1)
+        else:
+            di.append(0)
+    v = np.diag(di)
+    # initialize Υ
+
+    for i in range(length):
+        dv[i][i] = 1 / (math.sqrt(dv[i][i]))
+        # de[i][i] = 1 / de[i][i]
+    # calculate power of Dv and De
+    de = np.linalg.inv(de)
+    mu = 1
+    lamb = 1
+
+    xt = np.transpose(x)
+    first = np.dot(v, v)
+    first = np.dot(xt, first)
+    first = np.dot(first, x)
+    third = np.dot(xt, v)
+    third = np.dot(third, y)
+    second = mu * xt
+    # initialize fixed part of ω
+
+    count = 0
+    threshold = 0.000001
+    opt = [0]
+
+    while True:
+        deltaleft = np.dot(dv, h)
+        deltaright = np.dot(de, np.transpose(h))
+        deltaright = np.dot(deltaright, dv)
+        deltai = np.eye(length)
+        # left and right part of Δ
+
+        delta = np.dot(deltaleft, wm)
+        delta = np.dot(delta, deltaright)
+        delta = deltai - delta
+        # first delta
+
+        w = np.dot(second, delta)
+        w = np.dot(w, x)
+        w = first + w
+        w = np.linalg.inv(w)
+        w = np.dot(w, third)
+        # first w
+
+        xw = np.dot(x, w)
+        tmp = xw - y
+        tmp = np.dot(v, tmp)
+        remp = np.linalg.norm(tmp, ord=2) ** 2
+        omega = np.dot(np.transpose(xw), delta)
+        omega = np.dot(omega, xw)
+        kesai = np.linalg.norm(wm) ** 2
+        opttmp = remp + mu * omega + lamb * kesai
+        opt.append(opttmp)
+        # first optimization
+
+        count += 1
+        if count > 2 and opt[count - 1] - opt[count] < threshold:
+            break
+        # judge
+
+        caplambda = np.dot(np.transpose(xw), dv)
+        caplambda = np.dot(caplambda, h)
+        # first Λ
+
+        yita_tmp = mu * caplambda
+        yita_tmp = np.dot(yita_tmp, de)
+        yita_tmp = np.dot(yita_tmp, np.transpose(caplambda))
+        yita = (yita_tmp - 2 * lamb) / length
+        # first η
+
+        w_tmp = mu * np.transpose(caplambda)
+        w_tmp = np.dot(w_tmp, caplambda)
+        wm = (0.5 / lamb) * (np.dot(w_tmp, de) - yita * deltai)
+        # second W
+
+        dvlist = []
+        for xi in range(length):
+            vertextmp = 0
+            for yi in range(length):
+                vertextmp += wm[yi][yi] * h[xi][yi]
+            dvlist.append(vertextmp)
+        dv = np.diag(dvlist)
+        for i in range(length):
+            dv[i][i] = 1 / (math.sqrt(dv[i][i]))
+        # initialize Dv
+    # iteration
+
+    return w
 
 
 def grubbs(timeseries):
