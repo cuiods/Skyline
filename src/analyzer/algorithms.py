@@ -5,7 +5,10 @@ import scipy
 import statsmodels.api as sm
 import traceback
 import logging
+
 import math
+import random
+
 from time import time
 from msgpack import unpackb, packb
 from redis import StrictRedis
@@ -28,6 +31,8 @@ from settings import (
     VERTEX_THRESHOLD,
     ANOMALY_COLUMN,
     ANOMALY_PATH,
+    CSHL_NUM,
+    CSHL_PATH,
 )
 
 from algorithm_exceptions import *
@@ -36,7 +41,13 @@ logger = logging.getLogger("AnalyzerLog")
 redis_conn = StrictRedis(unix_socket_path=REDIS_SOCKET_PATH)
 vertex_centers = np.zeros((1, 1))
 vertex_avg_score = -1
-cshl_weight = np.zeros((1, 1))
+cshl_weight = [-1.35455734e-01,  -5.44036064e-04,  -1.35455734e-01,  -5.44036064e-04,
+  -1.35455734e-01,  -1.35455734e-01,  -5.44036064e-04,  -1.35455734e-01,
+  -5.44036064e-04,  -1.35455734e-01,  -5.44036064e-04,  -5.44036064e-04,
+  -1.67484694e+00,   1.04843752e+00,   6.61651030e-01,  4.13469487e-08,
+   1.78945321e-01,  -3.60150391e-01,   1.21850659e-01,  4.61800469e-01,
+  -1.00200490e-01,  -1.33467708e-06,   9.32745829e-19,  4.21863030e-09,
+  -3.36662454e-10,  -8.90717918e-06,  -4.42558069e-05,  -2.87667856e-09]
 
 """
 This is no man's land. Do anything you want in here,
@@ -60,6 +71,18 @@ def vertex_score(timeseries):
     test_data = np.nan_to_num(test_data)
     score = calculate_vertex_score(test_data, vertex_centers)
     if np.sum(score[score > vertex_avg_score]) > VERTEX_THRESHOLD:
+        return True
+    return False
+
+
+def cshl_detect(timeseries):
+    timeseries = np.delete(np.array(timeseries), [0,1,2,15], axis=1)
+    abnormal_num = 0
+    for i in range(timeseries.shape[0]):
+        zeta = np.dot(timeseries[i], cshl_weight)
+        if zeta < 0:
+            abnormal_num = abnormal_num + 1
+    if abnormal_num >= CSHL_NUM:
         return True
     return False
 
@@ -140,27 +163,24 @@ def tail_avg(timeseries):
         return timeseries[-1]
 
 
-def z_score(x):
-    """
-    z-standard
-    :param x:
-    :return:
-    """
-    dim = x.shape[1]
-    leng = x.shape[0]
-    for i in range(dim):
-        total = 0
-        var = 0
-        for j in range(leng):
-            total += x[j][i]
-        ave = float(total) / leng
-        for j in range(leng):
-            var += pow(x[j][i] - ave, 2)
-        var = var / (leng - 1)
-        var = pow(var, 0.5)
-        for j in range(leng):
-            x[j][i] = (x[j][i] - ave) / var
-    return x
+def update_cshl():
+    global cshl_weight
+    csv_data = pandas.read_csv(CSHL_PATH, header=None)
+    csv_data.drop([1, 2, 15], axis=1, inplace=True)
+    csv_data.drop_duplicates()
+
+    normal_data = csv_data[csv_data[0] == 0]
+    abnormal_data = csv_data[csv_data[0] == 1]
+    measure_data = np.vstack((normal_data, abnormal_data))
+    measure_label = measure_data[:, 0]
+    measure_label[measure_label == 0] = -1
+
+    measure_data = measure_data[:, 1:]
+    measure_data = (measure_data - np.min(measure_data, axis=0)) / (
+            np.max(measure_data, axis=0) - np.min(measure_data, axis=0))
+    measure_data = np.nan_to_num(measure_data)
+
+    cshl_weight = hpconstruct(measure_data, measure_label, 5)
 
 
 def hpconstruct(x, y, k):
@@ -248,6 +268,7 @@ def hpconstruct(x, y, k):
     count = 0
     threshold = 0.000001
     opt = [0]
+    u = np.eye(x.shape[1])
 
     while True:
         deltaleft = np.dot(dv, h)
@@ -264,9 +285,14 @@ def hpconstruct(x, y, k):
         w = np.dot(second, delta)
         w = np.dot(w, x)
         w = first + w
+        w = w + 1.0 * u
         w = np.linalg.inv(w)
         w = np.dot(w, third)
         # first w
+
+        test = 0.1 * 1.0 / (2 * w ** 2)
+        np.fill_diagonal(u, test)
+        # update u
 
         xw = np.dot(x, w)
         tmp = xw - y

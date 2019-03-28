@@ -201,6 +201,14 @@ ANOMALY_COLUMN = 2
 # Path of observed abnormal data
 ANOMALY_PATH = '/home/cuiods/Project/skyline/src/analyzer/data/data_ipv6_abnormal.csv'
 
+
+# If the number of abnormal data exceeds the threshold, the metric will be considered to be abnormal
+CSHL_NUM = 2
+
+
+# Path of observed sample data for cshl training
+CSHL_PATH = '/home/cuiods/Project/skyline/src/analyzer/data/data_ipv6_sample.csv'
+
 """
 Horizon settings
 """
