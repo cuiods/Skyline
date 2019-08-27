@@ -6,10 +6,10 @@ Shared settings
 REDIS_SOCKET_PATH = '/tmp/redis.sock'
 
 # The Skyline logs directory. Do not include a trailing slash.
-LOG_PATH = '/var/log/skyline'
+LOG_PATH = '/your/path/to/skyline/log'
 
 # The Skyline pids directory. Do not include a trailing slash.
-PID_PATH = '/var/run/skyline'
+PID_PATH = '/your/path/to/skyline/run'
 
 # Metrics will be prefixed with this value in Redis.
 FULL_NAMESPACE = 'metrics.'
@@ -68,7 +68,7 @@ ANALYZER_PROCESSES = 4
 # This is the duration, in seconds, for a metric to become 'stale' and for
 # the analyzer to ignore it until new datapoints are added. 'Staleness' means
 # that a datapoint has not been added for STALE_PERIOD seconds.
-STALE_PERIOD = 500
+STALE_PERIOD = 1000
 
 # This is the minimum length of a timeseries, in datapoints, for the analyzer
 # to recognize it as a complete series.
@@ -96,19 +96,17 @@ CANARY_METRIC = 'statsd.numStats'
 # you must both define the algorithm in algorithms.py and add its name here.
 ALGORITHMS = [
     'first_hour_average',
-    'mean_subtraction_cumulation',
     'stddev_from_average',
-    'stddev_from_moving_average',
-    'least_squares',
-    'grubbs',
-    'histogram_bins',
-    'median_absolute_deviation',
-    'ks_test',
+    'vertex_score',
+    # 'least_squares',
+    # 'grubbs',
+    # 'histogram_bins',
+    # 'ks_test',
 ]
 
 # This is the number of algorithms that must return True before a metric is
 # classified as anomalous.
-CONSENSUS = 6
+CONSENSUS = 1
 
 # This is to enable second order anomalies. This is an experimental feature, so
 # it's turned off by default.
@@ -164,11 +162,8 @@ PAGERDUTY_OPTS = {
 # This is the number of processes that the Skyline persister will spawn.
 PERSIST_PROCESSES = 1
 
-# This is the number of processes that the Skyline persister will spawn.
-PERSIST_PROCESSES = 1
-
 # Mysql host used to store abnormal data points
-MYSQL_HOST = '127.0.0.1'
+MYSQL_HOST = 'localhost'
 
 # Mysql port
 MYSQL_PORT = 3306
@@ -177,13 +172,13 @@ MYSQL_PORT = 3306
 MYSQL_USER = 'skyline'
 
 # Password for MYSQL_USER
-MYSQL_PASSWORD = ''
+MYSQL_PASSWORD = '123456skyline'
 
 # Mysql database used to store abnormal data points
-MYSQL_DB = 'anomaly'
+MYSQL_DB = 'skyline'
 
 # Mysql charset
-MYSQL_CHARSET = 'utf-8'
+MYSQL_CHARSET = 'utf8'
 
 # classify abnormal data into several classes
 K_MEANS_CLUSTER = 7
@@ -195,11 +190,13 @@ VERTEX_WEIGHT_ETA = 0.5
 # the metric will be considered to be abnormal
 VERTEX_THRESHOLD = 2
 
+
 # If the number of abnormal column exceeds the threshold, the metric will be considered to be abnormal
 ANOMALY_COLUMN = 2
 
+
 # Path of observed abnormal data
-ANOMALY_PATH = '/home/cuiods/Project/skyline/src/analyzer/data/data_ipv6_abnormal.csv'
+ANOMALY_PATH = '/your/path/to/skyline/src/analyzer/data/data_ipv6_abnormal.csv'
 
 
 # If the number of abnormal data exceeds the threshold, the metric will be considered to be abnormal
@@ -207,7 +204,8 @@ CSHL_NUM = 2
 
 
 # Path of observed sample data for cshl training
-CSHL_PATH = '/home/cuiods/Project/skyline/src/analyzer/data/data_ipv6_sample.csv'
+CSHL_PATH = '/your/path/to/skyline/src/analyzer/data/data_ipv6_sample.csv'
+
 
 """
 Horizon settings
